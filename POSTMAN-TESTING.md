@@ -1,13 +1,13 @@
 # Postman Testing Guide — DRF Generic Views & Permissions
 
-This document describes how to **manually test all API endpoints using Postman**, with a focus on **authentication, permissions, and expected responses**.
+This document explains how to **manually test all API endpoints using Postman**, with explicit guidance on **when authentication is required** and how permissions are enforced.
 
 It is designed to validate that:
 
-* Public endpoints are accessible
-* Protected endpoints are correctly restricted
-* Admin-only actions are enforced
-* Permissions behave as intended
+* Public endpoints are accessible without login
+* Authenticated endpoints require valid login credentials
+* Admin-only actions are properly restricted
+* Permission rules behave exactly as designed
 
 ---
 
@@ -20,16 +20,20 @@ Before testing, ensure:
   ```bash
   python manage.py runserver
   ```
+
 * Base URL:
 
   ```
   http://127.0.0.1:8000
   ```
-* A superuser exists:
+
+* At least one superuser exists:
 
   ```bash
   python manage.py createsuperuser
   ```
+
+* (Optional) A regular non-admin user exists for testing authenticated access
 
 ---
 
@@ -49,9 +53,20 @@ All requests below assume usage of:
 
 ---
 
-## 🔓 Authentication Strategy (Session-Based)
+## 🔐 Authentication Strategy (Session-Based)
 
-This project uses **Django session authentication** for testing.
+This project uses **Django session authentication**.
+
+### Important Rule
+
+> **Only requests that modify data (POST / PUT / DELETE) require login**
+> Read-only (`GET`) requests do **not** require authentication.
+
+Postman will automatically reuse the session **after a successful login**, so you only need to log in **once per session**.
+
+---
+
+## 🔑 Login (Required for Authenticated/Admin Requests)
 
 ### Login Endpoint
 
@@ -62,7 +77,7 @@ POST {{BASE_URL}}/api-auth/login/
 ### Postman Setup
 
 * Method: `POST`
-* Authorization: **No Auth**
+* Authorization tab: **No Auth**
 * Headers:
 
   ```
@@ -75,14 +90,18 @@ POST {{BASE_URL}}/api-auth/login/
   password=yourpassword
   ```
 
-✅ On success, Postman stores the session cookie automatically
-⚠️ Cookies must be enabled in Postman settings
+✅ On success:
+
+* Response status: `200 OK`
+* Session cookie is stored automatically by Postman
+
+⚠️ Ensure **cookies are enabled** in Postman settings
 
 ---
 
 ## 🧪 Products API Testing (Granular Views)
 
-### 1️⃣ List Products (Public)
+### 1️⃣ List Products (Public — No Login)
 
 **Request**
 
@@ -90,9 +109,9 @@ POST {{BASE_URL}}/api-auth/login/
 GET {{BASE_URL}}/api/products/
 ```
 
-**Auth**
+**Login Required**
 
-* None
+* ❌ No
 
 **Expected Response**
 
@@ -109,19 +128,13 @@ GET {{BASE_URL}}/api/products/
 POST {{BASE_URL}}/api/products/create
 ```
 
-**Auth**
+**Login Required**
 
-* None
+* ✅ Yes (Admin)
 
-**Body (JSON)**
+**Auth Used**
 
-```json
-{
-  "slug": "test-product",
-  "name": "Test Product",
-  "price": 100
-}
-```
+* ❌ Not logged in
 
 **Expected Response**
 
@@ -131,13 +144,17 @@ POST {{BASE_URL}}/api/products/create
 
 ### 3️⃣ Create Product (Admin — Should Succeed)
 
-🔐 Ensure you are logged in as admin first.
+🔐 **Login as admin first** (session cookie must be present)
 
 **Request**
 
 ```
 POST {{BASE_URL}}/api/products/create
 ```
+
+**Login Required**
+
+* ✅ Yes (Admin)
 
 **Body (JSON)**
 
@@ -155,13 +172,17 @@ POST {{BASE_URL}}/api/products/create
 
 ---
 
-### 4️⃣ Retrieve Product (Public)
+### 4️⃣ Retrieve Product (Public — No Login)
 
 **Request**
 
 ```
 GET {{BASE_URL}}/api/products/retrieve/laptop-pro
 ```
+
+**Login Required**
+
+* ❌ No
 
 **Expected Response**
 
@@ -171,11 +192,17 @@ GET {{BASE_URL}}/api/products/retrieve/laptop-pro
 
 ### 5️⃣ Update Product (Admin Only)
 
+🔐 **Admin login required**
+
 **Request**
 
 ```
 PUT {{BASE_URL}}/api/products/update/laptop-pro
 ```
+
+**Login Required**
+
+* ✅ Yes (Admin)
 
 **Body (JSON)**
 
@@ -195,11 +222,17 @@ PUT {{BASE_URL}}/api/products/update/laptop-pro
 
 ### 6️⃣ Delete Product (Admin Only)
 
+🔐 **Admin login required**
+
 **Request**
 
 ```
 DELETE {{BASE_URL}}/api/products/destroy/laptop-pro
 ```
+
+**Login Required**
+
+* ✅ Yes (Admin)
 
 **Expected Response**
 
@@ -209,13 +242,17 @@ DELETE {{BASE_URL}}/api/products/destroy/laptop-pro
 
 ## 🧪 Posts API Testing (Combined Views)
 
-### 1️⃣ List Posts (Public)
+### 1️⃣ List Posts (Public — No Login)
 
 **Request**
 
 ```
 GET {{BASE_URL}}/api/posts/
 ```
+
+**Login Required**
+
+* ❌ No
 
 **Expected Response**
 
@@ -231,14 +268,13 @@ GET {{BASE_URL}}/api/posts/
 POST {{BASE_URL}}/api/posts/
 ```
 
-**Body (JSON)**
+**Login Required**
 
-```json
-{
-  "name": "Anonymous User",
-  "message": "This should not work"
-}
-```
+* ✅ Yes
+
+**Auth Used**
+
+* ❌ Not logged in
 
 **Expected Response**
 
@@ -248,13 +284,17 @@ POST {{BASE_URL}}/api/posts/
 
 ### 3️⃣ Create Post (Authenticated — Should Succeed)
 
-🔐 Login as any authenticated user.
+🔐 **Login as any authenticated user (admin or regular user)**
 
 **Request**
 
 ```
 POST {{BASE_URL}}/api/posts/
 ```
+
+**Login Required**
+
+* ✅ Yes
 
 **Body (JSON)**
 
@@ -271,13 +311,17 @@ POST {{BASE_URL}}/api/posts/
 
 ---
 
-### 4️⃣ Retrieve Post (Public)
+### 4️⃣ Retrieve Post (Public — No Login)
 
 **Request**
 
 ```
 GET {{BASE_URL}}/api/posts/1
 ```
+
+**Login Required**
+
+* ❌ No
 
 **Expected Response**
 
@@ -287,11 +331,17 @@ GET {{BASE_URL}}/api/posts/1
 
 ### 5️⃣ Update Post (Authenticated Only)
 
+🔐 **Login required**
+
 **Request**
 
 ```
 PUT {{BASE_URL}}/api/posts/1
 ```
+
+**Login Required**
+
+* ✅ Yes
 
 **Body (JSON)**
 
@@ -310,11 +360,17 @@ PUT {{BASE_URL}}/api/posts/1
 
 ### 6️⃣ Delete Post (Authenticated Only)
 
+🔐 **Login required**
+
 **Request**
 
 ```
 DELETE {{BASE_URL}}/api/posts/1
 ```
+
+**Login Required**
+
+* ✅ Yes
 
 **Expected Response**
 
@@ -339,18 +395,13 @@ DELETE {{BASE_URL}}/api/posts/1
 
 ## 🧠 Notes & Best Practices
 
-* **403 Forbidden** = permission denied (expected behavior)
-* **401 Unauthorized** = authentication missing or invalid
-* Always verify behavior as **anonymous first**, then authenticated
-* Use Postman environments to avoid hardcoding URLs
+* `403 Forbidden` = authenticated but not allowed (expected)
+* `401 Unauthorized` = not logged in
+* Always test endpoints in this order:
 
----
-
-## ✅ What This Confirms
-
-* Permissions are correctly enforced per view
-* Public vs protected endpoints behave as designed
-* The API is safe against unauthorized writes
-* The project reflects real-world DRF security patterns
+  1. Anonymous
+  2. Authenticated user
+  3. Admin user
+* Session login persists until Postman cookies are cleared
 
 
