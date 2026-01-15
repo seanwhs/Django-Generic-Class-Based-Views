@@ -1,87 +1,210 @@
-# Django REST Framework: The Generic Views Lab
+# Django REST Framework — Generic Views & Permissions
 
-This repository documents my progression through **Django REST Framework (DRF)**, moving from granular, single-purpose views to streamlined, combined generic views.
+A focused Django REST Framework project demonstrating **generic class-based views**, **API design trade-offs**, and **permission-driven access control**.
 
-## 🎯 Learning Objective
-
-The core of this lab is understanding the **DRF Class-Based View (CBV) Hierarchy**. I have implemented two different architectural patterns to compare code efficiency and endpoint mapping.
+This repository compares **granular vs combined DRF generic views** while progressively layering in **realistic authentication and authorization rules**, reflecting how production APIs are structured.
 
 ---
 
-## 🏗️ Architectural Patterns
+## 🎯 Project Goals
 
-### 1. The "Granular" Approach (`products` app)
+This project was built to demonstrate:
 
-In this app, I used **Single-Purpose Generic Views**. This is excellent for learning exactly how each HTTP method maps to a specific DRF class.
+* Mastery of **DRF Generic Class-Based Views**
+* Intentional API design choices (clarity vs abstraction)
+* Practical use of **permission classes** to secure endpoints
+* Clean, readable, maintainable REST architecture
 
-* **Views used:** `ListAPIView`, `CreateAPIView`, `RetrieveAPIView`, `UpdateAPIView`, `DestroyAPIView`.
-* **Key Learning:** Using `lookup_field = 'slug'` to move away from primary keys (IDs) to SEO-friendly identifiers.
+---
 
-### 2. The "Combined" Approach (`posts` app)
+## 🧠 Architectural Overview
 
-In this app, I moved up the abstraction ladder by using **Combined Generic Views**.
+The project contains two apps, each showcasing a different design philosophy.
 
-* **`ListCreateAPIView`**: Handles both `GET` (List) and `POST` (Create) in a single class.
-* **`RetrieveUpdateDestroyAPIView`**: Handles `GET` (Retrieve), `PUT/PATCH` (Update), and `DELETE` (Destroy) in one class.
-* **Result:** Reduced code volume by **50%** while maintaining the exact same functionality.
+---
+
+## 🧱 Products App — Granular Generic Views
+
+The `products` app uses **single-responsibility generic views**, where each HTTP action maps to a specific DRF class.
+
+### Views Used
+
+* `ListAPIView`
+* `CreateAPIView`
+* `RetrieveAPIView`
+* `UpdateAPIView`
+* `DestroyAPIView`
+
+### Key Characteristics
+
+* Explicit, readable request → response flow
+* Uses `slug` instead of `pk` for resource lookup
+* Admin-only write access
+* Public read access
+
+### Why This Matters
+
+This approach prioritizes **clarity and control**, making it ideal for sensitive resources such as inventory, pricing, or administrative data.
+
+---
+
+## 🧩 Posts App — Combined Generic Views
+
+The `posts` app uses **higher-level combined generic views** to reduce boilerplate.
+
+### Views Used
+
+* `ListCreateAPIView`
+* `RetrieveUpdateDestroyAPIView`
+
+### Key Characteristics
+
+* Fewer classes, same functionality
+* Public read access
+* Authenticated-only write access
+
+### Why This Matters
+
+This pattern is common for content-driven APIs (blogs, comments, feeds), where readability and speed of development matter.
+
+---
+
+## 🔐 Permissions & Access Control
+
+Permissions are applied **per view**, not globally, allowing fine-grained control while keeping the configuration simple.
+
+### Permission Rules
+
+| Resource | Read   | Write               |
+| -------- | ------ | ------------------- |
+| Products | Public | Admin only          |
+| Posts    | Public | Authenticated users |
+
+### Permission Classes Used
+
+* `AllowAny`
+* `IsAuthenticatedOrReadOnly`
+* `IsAdminUser`
+
+---
+
+## 🔎 Permissions Flow (ASCII Diagram)
+
+```
+                    ┌──────────────┐
+                    │   Anonymous  │
+                    │     User     │
+                    └──────┬───────┘
+                           │
+               ┌───────────┴───────────┐
+               │                       │
+        GET /products/           GET /posts/
+        GET /products/<slug>     GET /posts/<id>
+               │                       │
+            ✅ Allowed              ✅ Allowed
+               │                       │
+               └───────────┬───────────┘
+                           │
+                    ┌──────▼───────┐
+                    │ Authenticated│
+                    │     User     │
+                    └──────┬───────┘
+                           │
+            ┌──────────────┴──────────────┐
+            │                             │
+     POST /posts/                  PUT /posts/<id>
+     DELETE /posts/<id>            PATCH /posts/<id>
+            │                             │
+         ✅ Allowed                    ✅ Allowed
+            │
+            └───────────┬───────────┐
+                        │
+                  ┌─────▼─────┐
+                  │   Admin   │
+                  │   User    │
+                  └─────┬─────┘
+                        │
+        ┌───────────────┴────────────────┐
+        │                                │
+ POST /products/create         PUT /products/update/<slug>
+ DELETE /products/destroy/<slug>
+        │
+     ✅ Allowed
+```
 
 ---
 
 ## 🛠️ API Reference
 
-### Products (Granular)
+### Products API (Granular)
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/products/` | List all products |
-| `POST` | `/api/products/create` | Create a new product |
-| `GET` | `/api/products/retrieve/<slug>` | Get a product by slug |
-| `PUT` | `/api/products/update/<slug>` | Update a product |
-| `DELETE` | `/api/products/destroy/<slug>` | Delete a product |
-
-### Posts (Combined)
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET/POST` | `/api/posts/` | List all posts or Create a post |
-| `GET/PUT/DELETE` | `/api/posts/<int:pk>` | Retrieve, Update, or Delete by ID |
+| Method   | Endpoint                        | Access | Description      |
+| -------- | ------------------------------- | ------ | ---------------- |
+| `GET`    | `/api/products/`                | Public | List products    |
+| `POST`   | `/api/products/create`          | Admin  | Create product   |
+| `GET`    | `/api/products/retrieve/<slug>` | Public | Retrieve product |
+| `PUT`    | `/api/products/update/<slug>`   | Admin  | Update product   |
+| `DELETE` | `/api/products/destroy/<slug>`  | Admin  | Delete product   |
 
 ---
 
-## 📝 Critical Code Fixes & Lessons
+### Posts API (Combined)
 
-### 1. The "Turtle" Incident
+| Method   | Endpoint              | Access        | Description   |
+| -------- | --------------------- | ------------- | ------------- |
+| `GET`    | `/api/posts/`         | Public        | List posts    |
+| `POST`   | `/api/posts/`         | Authenticated | Create post   |
+| `GET`    | `/api/posts/<int:pk>` | Public        | Retrieve post |
+| `PUT`    | `/api/posts/<int:pk>` | Authenticated | Update post   |
+| `DELETE` | `/api/posts/<int:pk>` | Authenticated | Delete post   |
 
-During development, an accidental import from the `turtle` library occurred in the serializer. Corrected to:
+---
 
-```python
-# Fixed: Removed 'from turtle import mode'
-from rest_framework import serializers
-from .models import Post
+## 🧪 Notable Lessons Learned
 
+### IDE Autocomplete Can Bite
+
+A stray import from Python’s `turtle` module made it into a serializer. Removed and corrected — a reminder to **read imports carefully**.
+
+### Trailing Slashes Matter
+
+Django treats `/endpoint` and `/endpoint/` differently. URL patterns were written deliberately to avoid unnecessary redirects.
+
+### Lookup Fields Are API Design
+
+Switching from `pk` to `slug` dramatically improves URL readability and mirrors real-world REST conventions.
+
+---
+
+## 🚀 Running the Project
+
+```bash
+# Activate environment
+source venv/bin/activate
+
+# Install dependencies
+pip install django djangorestframework mysqlclient
+
+# Apply migrations
+python manage.py migrate
+
+# Run server
+python manage.py runserver
 ```
 
-### 2. URL Trailing Slashes
+Authentication testing is available at:
 
-Django's `APPEND_SLASH` behavior means that `/api/products/` and `/api/products` are treated differently. For this lab, I have ensured that the URL configuration matches the request pattern to avoid unnecessary `301` redirects.
-
-### 3. Lookup Fields
-
-By default, DRF looks for `pk`. In the `products` app, I successfully overrode this to use `slug`:
-
-```python
-class RetrieveProductAPIView(RetrieveAPIView):
-    queryset = Product.objects.all()
-    serializer_class = ProductSerializer
-    lookup_field = 'slug' # Enables slug-based routing
-
+```
+/api-auth/login/
 ```
 
 ---
 
-## 🚀 How to Run
+## ✅ Key Takeaways
 
-1. **Activate Environment:** `source venv/bin/activate` (or `.\venv\Scripts\activate` on Windows).
-2. **Install Specs:** `pip install django djangorestframework mysqlclient`.
-3. **Migrate:** `python manage.py migrate`.
-4. **Run:** `python manage.py runserver`.
+* DRF generic views scale cleanly from explicit to abstract
+* Permissions should be **intentional, visible, and testable**
+* Cleaner code does not require sacrificing control
+* Good APIs communicate intent through structure
+
+
