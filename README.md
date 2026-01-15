@@ -1,6 +1,6 @@
-# Django REST Framework — Generic Views & Permissions
+# Django REST Framework — Generic Views & Permissions (JWT)
 
-A focused Django REST Framework project demonstrating **generic class-based views**, **API design trade-offs**, and **permission-driven access control**.
+A focused Django REST Framework project demonstrating **generic class-based views**, **API design trade-offs**, and **permission-driven access control** with **JWT authentication**.
 
 This repository compares **granular vs combined DRF generic views** while progressively layering in **realistic authentication and authorization rules**, reflecting how production APIs are structured.
 
@@ -14,6 +14,7 @@ This project was built to demonstrate:
 * Intentional API design choices (clarity vs abstraction)
 * Practical use of **permission classes** to secure endpoints
 * Clean, readable, maintainable REST architecture
+* Modern **token-based authentication (JWT)**
 
 ---
 
@@ -69,9 +70,9 @@ This pattern is common for content-driven APIs (blogs, comments, feeds), where r
 
 ---
 
-## 🔐 Permissions & Access Control
+## 🔐 Permissions & Access Control (JWT)
 
-Permissions are applied **per view**, not globally, allowing fine-grained control while keeping the configuration simple.
+Permissions are applied **per view**, allowing fine-grained control while keeping the configuration simple.
 
 ### Permission Rules
 
@@ -86,9 +87,19 @@ Permissions are applied **per view**, not globally, allowing fine-grained contro
 * `IsAuthenticatedOrReadOnly`
 * `IsAdminUser`
 
+### Authentication
+
+* JWT (JSON Web Tokens) using `djangorestframework-simplejwt`
+* Login via `/api/token/` → returns `access` and `refresh` tokens
+* Include access token in request headers:
+
+```
+Authorization: Bearer <access_token>
+```
+
 ---
 
-## 🔎 Permissions Flow (ASCII Diagram)
+## 🔎 Permissions Flow
 
 ```
                     ┌──────────────┐
@@ -174,16 +185,23 @@ Django treats `/endpoint` and `/endpoint/` differently. URL patterns were writte
 
 Switching from `pk` to `slug` dramatically improves URL readability and mirrors real-world REST conventions.
 
+### JWT vs Session
+
+* JWT removes CSRF requirements, making API testing simpler
+* Access token is required in headers for protected endpoints
+* Refresh token can extend sessions without storing credentials
+
 ---
 
 ## 🚀 Running the Project
 
 ```bash
 # Activate environment
-source venv/bin/activate
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
 
 # Install dependencies
-pip install django djangorestframework mysqlclient
+pip install -r requirements.txt
 
 # Apply migrations
 python manage.py migrate
@@ -192,10 +210,17 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-Authentication testing is available at:
+Authentication testing endpoints:
 
 ```
-/api-auth/login/
+POST /api/token/       # Get access & refresh token
+POST /api/token/refresh/ # Refresh access token
+```
+
+Include the `access` token in requests:
+
+```
+Authorization: Bearer <access_token>
 ```
 
 ---
@@ -205,6 +230,6 @@ Authentication testing is available at:
 * DRF generic views scale cleanly from explicit to abstract
 * Permissions should be **intentional, visible, and testable**
 * Cleaner code does not require sacrificing control
+* JWT tokens simplify authentication for APIs
 * Good APIs communicate intent through structure
-
 

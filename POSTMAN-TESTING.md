@@ -1,13 +1,6 @@
-# Postman Testing Guide — DRF Generic Views & Permissions
+# Postman Testing Guide — DRF Generic Views & Permissions (JWT)
 
-This document explains how to **manually test all API endpoints using Postman**, with explicit guidance on **when authentication is required** and how permissions are enforced.
-
-It is designed to validate that:
-
-* Public endpoints are accessible without login
-* Authenticated endpoints require valid login credentials
-* Admin-only actions are properly restricted
-* Permission rules behave exactly as designed
+This guide explains how to test all API endpoints using Postman with **JWT authentication**, highlighting **when authentication is required** and how **permissions are enforced**.
 
 ---
 
@@ -15,146 +8,166 @@ It is designed to validate that:
 
 Before testing, ensure:
 
-* The Django server is running:
+* Django server is running:
 
-  ```bash
-  python manage.py runserver
-  ```
+```bash
+python manage.py runserver
+```
 
 * Base URL:
 
-  ```
-  http://127.0.0.1:8000
-  ```
+```
+http://127.0.0.1:8000
+```
 
 * At least one superuser exists:
 
-  ```bash
-  python manage.py createsuperuser
-  ```
+```bash
+python manage.py createsuperuser
+```
 
 * (Optional) A regular non-admin user exists for testing authenticated access
+
+* JWT installed and configured in Django:
+
+```bash
+pip install djangorestframework-simplejwt
+```
+
+* In `settings.py`:
+
+```python
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
+```
+
+* Add token URLs to `urls.py`:
+
+```python
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+
+urlpatterns += [
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+]
+```
 
 ---
 
 ## 🌍 Postman Environment (Recommended)
 
-Create a Postman Environment with the following variable:
+Create a Postman Environment with:
 
-| Variable   | Value                   |
-| ---------- | ----------------------- |
-| `BASE_URL` | `http://127.0.0.1:8000` |
+| Variable       | Value                     |
+| -------------- | ------------------------- |
+| `BASE_URL`     | `http://127.0.0.1:8000`   |
+| `ACCESS_TOKEN` | *(leave blank initially)* |
 
-All requests below assume usage of:
+All requests use `{{BASE_URL}}`.
+
+---
+
+## 🔑 Authentication Strategy (JWT)
+
+* Use `/api/token/` to **get an access token** for login.
+* Include the token in the **Authorization header** for requests that require authentication.
+* Format:
 
 ```
-{{BASE_URL}}
+Authorization: Bearer <access_token>
 ```
 
 ---
 
-## 🔐 Authentication Strategy (Session-Based)
+### 1️⃣ Obtain JWT Token
 
-This project uses **Django session authentication**.
+**Endpoint**
 
-### Important Rule
+```
+POST {{BASE_URL}}/api/token/
+```
 
-> **Only requests that modify data (POST / PUT / DELETE) require login**
-> Read-only (`GET`) requests do **not** require authentication.
+**Body (JSON)**
 
-Postman will automatically reuse the session **after a successful login**, so you only need to log in **once per session**.
+```json
+{
+  "username": "admin",
+  "password": "yourpassword"
+}
+```
+
+**Expected Response**
+
+```json
+{
+  "refresh": "<refresh_token>",
+  "access": "<access_token>"
+}
+```
+
+* Copy `access` into Postman Environment variable `ACCESS_TOKEN`.
 
 ---
 
-## 🔑 Login (Required for Authenticated/Admin Requests)
+### 2️⃣ Refresh JWT Token (Optional)
 
-### Login Endpoint
+**Endpoint**
 
 ```
-POST {{BASE_URL}}/api-auth/login/
+POST {{BASE_URL}}/api/token/refresh/
 ```
 
-### Postman Setup
+**Body (JSON)**
 
-* Method: `POST`
-* Authorization tab: **No Auth**
-* Headers:
+```json
+{
+  "refresh": "<refresh_token>"
+}
+```
 
-  ```
-  Content-Type: application/x-www-form-urlencoded
-  ```
-* Body → `x-www-form-urlencoded`:
+**Expected Response**
 
-  ```
-  username=admin
-  password=yourpassword
-  ```
+```json
+{
+  "access": "<new_access_token>"
+}
+```
 
-✅ On success:
-
-* Response status: `200 OK`
-* Session cookie is stored automatically by Postman
-
-⚠️ Ensure **cookies are enabled** in Postman settings
+* Update `ACCESS_TOKEN` in Postman.
 
 ---
 
 ## 🧪 Products API Testing (Granular Views)
 
-### 1️⃣ List Products (Public — No Login)
-
-**Request**
+### 1️⃣ List Products (Public)
 
 ```
 GET {{BASE_URL}}/api/products/
 ```
 
-**Login Required**
-
-* ❌ No
-
-**Expected Response**
-
-* `200 OK`
-* JSON list (empty or populated)
+* Auth: ❌ None
+* Response: `200 OK`
 
 ---
 
-### 2️⃣ Create Product (Anonymous — Should Fail)
-
-**Request**
+### 2️⃣ Create Product (Admin Only)
 
 ```
 POST {{BASE_URL}}/api/products/create
 ```
 
-**Login Required**
-
-* ✅ Yes (Admin)
-
-**Auth Used**
-
-* ❌ Not logged in
-
-**Expected Response**
-
-* `403 Forbidden`
-
----
-
-### 3️⃣ Create Product (Admin — Should Succeed)
-
-🔐 **Login as admin first** (session cookie must be present)
-
-**Request**
+**Headers**
 
 ```
-POST {{BASE_URL}}/api/products/create
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: application/json
 ```
-
-**Login Required**
-
-* ✅ Yes (Admin)
 
 **Body (JSON)**
 
@@ -166,43 +179,34 @@ POST {{BASE_URL}}/api/products/create
 }
 ```
 
-**Expected Response**
-
-* `201 Created`
+* Anonymous: `401 Unauthorized`
+* Admin: `201 Created`
 
 ---
 
-### 4️⃣ Retrieve Product (Public — No Login)
-
-**Request**
+### 3️⃣ Retrieve Product (Public)
 
 ```
 GET {{BASE_URL}}/api/products/retrieve/laptop-pro
 ```
 
-**Login Required**
-
-* ❌ No
-
-**Expected Response**
-
-* `200 OK`
+* Auth: ❌ None
+* Response: `200 OK`
 
 ---
 
-### 5️⃣ Update Product (Admin Only)
-
-🔐 **Admin login required**
-
-**Request**
+### 4️⃣ Update Product (Admin Only)
 
 ```
 PUT {{BASE_URL}}/api/products/update/laptop-pro
 ```
 
-**Login Required**
+**Headers**
 
-* ✅ Yes (Admin)
+```
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: application/json
+```
 
 **Body (JSON)**
 
@@ -214,87 +218,48 @@ PUT {{BASE_URL}}/api/products/update/laptop-pro
 }
 ```
 
-**Expected Response**
-
-* `200 OK`
+* Anonymous: `401 Unauthorized`
+* Admin: `200 OK`
 
 ---
 
-### 6️⃣ Delete Product (Admin Only)
-
-🔐 **Admin login required**
-
-**Request**
+### 5️⃣ Delete Product (Admin Only)
 
 ```
 DELETE {{BASE_URL}}/api/products/destroy/laptop-pro
 ```
 
-**Login Required**
-
-* ✅ Yes (Admin)
-
-**Expected Response**
-
-* `204 No Content`
+* Auth: `Authorization: Bearer {{ACCESS_TOKEN}}`
+* Anonymous: `401 Unauthorized`
+* Admin: `204 No Content`
 
 ---
 
 ## 🧪 Posts API Testing (Combined Views)
 
-### 1️⃣ List Posts (Public — No Login)
-
-**Request**
+### 1️⃣ List Posts (Public)
 
 ```
 GET {{BASE_URL}}/api/posts/
 ```
 
-**Login Required**
-
-* ❌ No
-
-**Expected Response**
-
-* `200 OK`
+* Auth: ❌ None
+* Response: `200 OK`
 
 ---
 
-### 2️⃣ Create Post (Anonymous — Should Fail)
-
-**Request**
+### 2️⃣ Create Post (Authenticated Only)
 
 ```
 POST {{BASE_URL}}/api/posts/
 ```
 
-**Login Required**
-
-* ✅ Yes
-
-**Auth Used**
-
-* ❌ Not logged in
-
-**Expected Response**
-
-* `403 Forbidden`
-
----
-
-### 3️⃣ Create Post (Authenticated — Should Succeed)
-
-🔐 **Login as any authenticated user (admin or regular user)**
-
-**Request**
+**Headers**
 
 ```
-POST {{BASE_URL}}/api/posts/
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: application/json
 ```
-
-**Login Required**
-
-* ✅ Yes
 
 **Body (JSON)**
 
@@ -305,80 +270,52 @@ POST {{BASE_URL}}/api/posts/
 }
 ```
 
-**Expected Response**
-
-* `201 Created`
+* Anonymous: `401 Unauthorized`
+* Authenticated user: `201 Created`
 
 ---
 
-### 4️⃣ Retrieve Post (Public — No Login)
-
-**Request**
+### 3️⃣ Retrieve Post (Public)
 
 ```
 GET {{BASE_URL}}/api/posts/1
 ```
 
-**Login Required**
-
-* ❌ No
-
-**Expected Response**
-
-* `200 OK`
+* Auth: ❌ None
+* Response: `200 OK`
 
 ---
 
-### 5️⃣ Update Post (Authenticated Only)
-
-🔐 **Login required**
-
-**Request**
+### 4️⃣ Update Post (Authenticated Only)
 
 ```
 PUT {{BASE_URL}}/api/posts/1
 ```
 
-**Login Required**
+**Headers**
 
-* ✅ Yes
-
-**Body (JSON)**
-
-```json
-{
-  "name": "Sean",
-  "message": "Updated post content"
-}
+```
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: application/json
 ```
 
-**Expected Response**
-
-* `200 OK`
+* Anonymous: `401 Unauthorized`
+* Authenticated user: `200 OK`
 
 ---
 
-### 6️⃣ Delete Post (Authenticated Only)
-
-🔐 **Login required**
-
-**Request**
+### 5️⃣ Delete Post (Authenticated Only)
 
 ```
 DELETE {{BASE_URL}}/api/posts/1
 ```
 
-**Login Required**
-
-* ✅ Yes
-
-**Expected Response**
-
-* `204 No Content`
+* Anonymous: `401 Unauthorized`
+* Authenticated user: `204 No Content`
 
 ---
 
-## 🔐 Permission Validation Matrix
+## 🔐 Permission Validation Matrix (JWT)
 
 | Endpoint                 | Anonymous | Authenticated | Admin |
 | ------------------------ | --------- | ------------- | ----- |
@@ -393,15 +330,10 @@ DELETE {{BASE_URL}}/api/posts/1
 
 ---
 
-## 🧠 Notes & Best Practices
+### ✅ Notes
 
-* `403 Forbidden` = authenticated but not allowed (expected)
-* `401 Unauthorized` = not logged in
-* Always test endpoints in this order:
-
-  1. Anonymous
-  2. Authenticated user
-  3. Admin user
-* Session login persists until Postman cookies are cleared
-
-
+* `401 Unauthorized` = token missing or invalid
+* `403 Forbidden` = authenticated but insufficient permissions
+* Always test **anonymous → authenticated → admin**
+* Use Postman Environment variable `ACCESS_TOKEN` to avoid manual copy/paste
+* JWT eliminates CSRF issues, making API testing simpler than session-based auth
