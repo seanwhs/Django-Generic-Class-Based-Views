@@ -1,6 +1,8 @@
-# Postman Testing Guide — DRF Generic Views & Permissions (JWT)
+# Postman Testing Guide — DRF Generic Views, Permissions, JWT & Swagger
 
-This guide explains how to test all API endpoints using Postman with **JWT authentication**, highlighting **when authentication is required** and how **permissions are enforced**.
+This guide explains how to test all API endpoints using **Postman** with **JWT authentication**, clearly showing **when authentication is required**, how **permissions are enforced**, and how **admin vs authenticated vs anonymous access** behaves.
+
+It also notes where **Swagger (OpenAPI)** can be used as a secondary testing and discovery tool alongside Postman.
 
 ---
 
@@ -8,7 +10,7 @@ This guide explains how to test all API endpoints using Postman with **JWT authe
 
 Before testing, ensure:
 
-* Django server is running:
+* Django development server is running:
 
 ```bash
 python manage.py runserver
@@ -20,15 +22,15 @@ python manage.py runserver
 http://127.0.0.1:8000
 ```
 
-* At least one superuser exists:
+* At least one **superuser** exists (for admin-only endpoints):
 
 ```bash
 python manage.py createsuperuser
 ```
 
-* (Optional) A regular non-admin user exists for testing authenticated access
+* (Optional) A regular **non-admin user** exists for authenticated-only testing
 
-* JWT installed and configured in Django:
+* JWT authentication is installed and configured:
 
 ```bash
 pip install djangorestframework-simplejwt
@@ -44,7 +46,7 @@ REST_FRAMEWORK = {
 }
 ```
 
-* Add token URLs to `urls.py`:
+* Token endpoints exist in root `urls.py`:
 
 ```python
 from rest_framework_simplejwt.views import (
@@ -60,7 +62,26 @@ urlpatterns += [
 
 ---
 
-## 🌍 Postman Environment (Recommended)
+## 📘 Swagger (Optional but Recommended)
+
+In addition to Postman, this project exposes **interactive Swagger documentation**:
+
+```
+http://127.0.0.1:8000/api/docs/
+```
+
+Swagger can be used to:
+
+* Discover available endpoints
+* Inspect request/response schemas
+* Authenticate using JWT
+* Perform quick exploratory testing
+
+**Postman remains the authoritative testing tool** for permission validation and repeatable request workflows.
+
+---
+
+## 🌍 Postman Environment Setup (Recommended)
 
 Create a Postman Environment with:
 
@@ -69,23 +90,32 @@ Create a Postman Environment with:
 | `BASE_URL`     | `http://127.0.0.1:8000`   |
 | `ACCESS_TOKEN` | *(leave blank initially)* |
 
-All requests use `{{BASE_URL}}`.
+All requests reference:
+
+```
+{{BASE_URL}}
+```
 
 ---
 
 ## 🔑 Authentication Strategy (JWT)
 
-* Use `/api/token/` to **get an access token** for login.
-* Include the token in the **Authorization header** for requests that require authentication.
-* Format:
+* Use `/api/token/` to **obtain an access token**
+* Include the token in the **Authorization header**
+* JWT format:
 
 ```
 Authorization: Bearer <access_token>
 ```
 
+Tokens are required for:
+
+* Admin-only product writes
+* Authenticated-only post creation and modification
+
 ---
 
-### 1️⃣ Obtain JWT Token
+## 1️⃣ Obtain JWT Token
 
 **Endpoint**
 
@@ -111,11 +141,17 @@ POST {{BASE_URL}}/api/token/
 }
 ```
 
-* Copy `access` into Postman Environment variable `ACCESS_TOKEN`.
+**Postman Tip**
+
+Save `access` into the environment variable:
+
+```
+ACCESS_TOKEN
+```
 
 ---
 
-### 2️⃣ Refresh JWT Token (Optional)
+## 2️⃣ Refresh JWT Token (Optional)
 
 **Endpoint**
 
@@ -139,11 +175,15 @@ POST {{BASE_URL}}/api/token/refresh/
 }
 ```
 
-* Update `ACCESS_TOKEN` in Postman.
+Update `ACCESS_TOKEN` in Postman when refreshed.
 
 ---
 
-## 🧪 Products API Testing (Granular Views)
+## 🧪 Products API Testing — Granular Generic Views
+
+Products use **single-responsibility views**, making permission enforcement explicit.
+
+---
 
 ### 1️⃣ List Products (Public)
 
@@ -152,7 +192,7 @@ GET {{BASE_URL}}/api/products/
 ```
 
 * Auth: ❌ None
-* Response: `200 OK`
+* Expected: `200 OK`
 
 ---
 
@@ -179,8 +219,11 @@ Content-Type: application/json
 }
 ```
 
-* Anonymous: `401 Unauthorized`
-* Admin: `201 Created`
+**Expected Behavior**
+
+* Anonymous → `401 Unauthorized`
+* Authenticated non-admin → `403 Forbidden`
+* Admin → `201 Created`
 
 ---
 
@@ -191,7 +234,7 @@ GET {{BASE_URL}}/api/products/retrieve/laptop-pro
 ```
 
 * Auth: ❌ None
-* Response: `200 OK`
+* Expected: `200 OK`
 
 ---
 
@@ -218,8 +261,8 @@ Content-Type: application/json
 }
 ```
 
-* Anonymous: `401 Unauthorized`
-* Admin: `200 OK`
+* Anonymous → `401 Unauthorized`
+* Admin → `200 OK`
 
 ---
 
@@ -230,12 +273,16 @@ DELETE {{BASE_URL}}/api/products/destroy/laptop-pro
 ```
 
 * Auth: `Authorization: Bearer {{ACCESS_TOKEN}}`
-* Anonymous: `401 Unauthorized`
-* Admin: `204 No Content`
+* Anonymous → `401 Unauthorized`
+* Admin → `204 No Content`
 
 ---
 
-## 🧪 Posts API Testing (Combined Views)
+## 🧪 Posts API Testing — Combined Generic Views
+
+Posts use **combined views**, where permissions apply per HTTP method.
+
+---
 
 ### 1️⃣ List Posts (Public)
 
@@ -244,7 +291,7 @@ GET {{BASE_URL}}/api/posts/
 ```
 
 * Auth: ❌ None
-* Response: `200 OK`
+* Expected: `200 OK`
 
 ---
 
@@ -270,8 +317,8 @@ Content-Type: application/json
 }
 ```
 
-* Anonymous: `401 Unauthorized`
-* Authenticated user: `201 Created`
+* Anonymous → `401 Unauthorized`
+* Authenticated user → `201 Created`
 
 ---
 
@@ -282,7 +329,7 @@ GET {{BASE_URL}}/api/posts/1
 ```
 
 * Auth: ❌ None
-* Response: `200 OK`
+* Expected: `200 OK`
 
 ---
 
@@ -299,8 +346,8 @@ Authorization: Bearer {{ACCESS_TOKEN}}
 Content-Type: application/json
 ```
 
-* Anonymous: `401 Unauthorized`
-* Authenticated user: `200 OK`
+* Anonymous → `401 Unauthorized`
+* Authenticated user → `200 OK`
 
 ---
 
@@ -310,8 +357,8 @@ Content-Type: application/json
 DELETE {{BASE_URL}}/api/posts/1
 ```
 
-* Anonymous: `401 Unauthorized`
-* Authenticated user: `204 No Content`
+* Anonymous → `401 Unauthorized`
+* Authenticated user → `204 No Content`
 
 ---
 
@@ -330,10 +377,15 @@ DELETE {{BASE_URL}}/api/posts/1
 
 ---
 
-### ✅ Notes
+## ✅ Notes & Best Practices
 
-* `401 Unauthorized` = token missing or invalid
-* `403 Forbidden` = authenticated but insufficient permissions
+* `401 Unauthorized` → token missing or invalid
+* `403 Forbidden` → authenticated but insufficient role
 * Always test **anonymous → authenticated → admin**
-* Use Postman Environment variable `ACCESS_TOKEN` to avoid manual copy/paste
-* JWT eliminates CSRF issues, making API testing simpler than session-based auth
+* Use Postman environment variables to avoid manual token copy/paste
+* JWT removes CSRF concerns, making API testing cleaner
+* Swagger is ideal for discovery; Postman is ideal for validation
+
+---
+
+This guide serves as a **complete, practical reference** for testing DRF APIs with **JWT authentication, permissions, Postman workflows, and Swagger support**, suitable for both **learning and professional documentation**.

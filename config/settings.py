@@ -1,9 +1,13 @@
 from pathlib import Path
 from datetime import timedelta
+import logging
+from django.utils.log import DEFAULT_LOGGING
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -30,6 +34,9 @@ INSTALLED_APPS = [
     # Rest Framework
     'rest_framework',
 
+    # Swagger Documentation
+    'drf_spectacular',
+
     # Custom Apps
     'products',
     'posts',
@@ -39,6 +46,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'config.middleware.DRFRequestResponseLoggingMiddleware',  # <- add thisfor logging
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -52,12 +60,20 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
     ),
+    # Very important for drf-spectacular!
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "My API",
+    "DESCRIPTION": "Products & Posts API",
+    "VERSION": "1.0.0",
 }
 
 ROOT_URLCONF = 'config.urls'
@@ -126,3 +142,32 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+LOGGING = DEFAULT_LOGGING.copy()
+LOGGING['version'] = 1
+LOGGING['disable_existing_loggers'] = False
+
+# Custom formatter for API logs
+LOGGING.setdefault('formatters', {})
+LOGGING['formatters']['api'] = {
+    'format': '[{levelname}] {asctime} {name} {message}',
+    'style': '{',
+}
+
+# Handlers dict may already exist in DEFAULT_LOGGING
+LOGGING.setdefault('handlers', {})
+LOGGING['handlers']['api_file'] = {
+    'level': 'INFO',
+    'class': 'logging.FileHandler',
+    'filename': str(LOG_DIR / 'api.log'),
+    'formatter': 'api',
+}
+
+# Logger for our middleware
+LOGGING.setdefault('loggers', {})
+LOGGING['loggers']['api.requests'] = {
+    'handlers': ['api_file'],
+    'level': 'INFO',
+    'propagate': False,
+}
+

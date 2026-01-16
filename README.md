@@ -1,34 +1,66 @@
-# Django REST Framework — Generic Views & Permissions (JWT)
+# Django REST Framework — Generic Views, Permissions, JWT, Swagger & Logging
 
-A focused Django REST Framework project demonstrating **generic class-based views**, **API design trade-offs**, and **permission-driven access control** with **JWT authentication**.
+A focused Django REST Framework (DRF) project demonstrating:
 
-This repository compares **granular vs combined DRF generic views** while progressively layering in **realistic authentication and authorization rules**, reflecting how production APIs are structured.
+* **Generic class-based views** (both granular and combined)
+* **REST API design trade-offs**
+* **Permission-driven access control**
+* **JWT authentication** (via SimpleJWT)
+* **Automatic Swagger / OpenAPI documentation**
+* **Request/response logging via custom middleware**
+
+This repository intentionally contrasts **granular vs combined generic views** while layering in real-world concerns such as authentication, authorization, observability, and documentation — closely mirroring how production APIs are built.
 
 ---
 
 ## 🎯 Project Goals
 
-This project was built to demonstrate:
+* Master **DRF Generic Class-Based Views**
+* Explore **intentional REST API design patterns**
+* Implement fine-grained **permission enforcement**
+* Maintain **clean, extensible Django architecture**
+* Integrate **JWT-based authentication**
+* Generate **automatic Swagger / OpenAPI documentation**
+* Log requests/responses via **custom middleware**
+* Follow production-oriented configuration practices
 
-* Mastery of **DRF Generic Class-Based Views**
-* Intentional API design choices (clarity vs abstraction)
-* Practical use of **permission classes** to secure endpoints
-* Clean, readable, maintainable REST architecture
-* Modern **token-based authentication (JWT)**
+---
+
+## 📦 Tech Stack & Dependencies
+
+**Core dependencies:**
+
+```
+Django==6.0.1
+djangorestframework==3.16.1
+djangorestframework_simplejwt==5.5.1
+drf-spectacular==0.29.0
+drf-spectacular-sidecar==2026.1.1
+PyJWT==2.10.1
+sqlparse==0.5.5
+tzdata==2025.3
+```
+
+Supporting libraries provide **schema validation, OpenAPI utilities, and typing helpers** for Swagger generation and JWT handling.
 
 ---
 
 ## 🧠 Architectural Overview
 
-The project contains two apps, each showcasing a different design philosophy.
+The project consists of **two apps** demonstrating different DRF design philosophies:
+
+* **Products App** – granular, single-responsibility generic views
+* **Posts App** – combined, higher-level generic views
+
+Both apps share **centralized authentication, Swagger documentation, and logging**.
 
 ---
 
 ## 🧱 Products App — Granular Generic Views
 
-The `products` app uses **single-responsibility generic views**, where each HTTP action maps to a specific DRF class.
+The **Products app** maps each HTTP action to a dedicated DRF generic view.
 
-### Views Used
+**Views:**
 
 * `ListAPIView`
 * `CreateAPIView`
@@ -36,112 +68,107 @@ The `products` app uses **single-responsibility generic views**, where each HTTP
 * `UpdateAPIView`
 * `DestroyAPIView`
 
-### Key Characteristics
+**Key Characteristics:**
 
-* Explicit, readable request → response flow
-* Uses `slug` instead of `pk` for resource lookup
-* Admin-only write access
-* Public read access
+* Explicit request → response mapping
+* Uses `slug` for lookups
+* **Admin-only write access**, **public read access**
 
-### Why This Matters
+**Use Case:**
 
-This approach prioritizes **clarity and control**, making it ideal for sensitive resources such as inventory, pricing, or administrative data.
+Ideal for sensitive resources (e.g., inventory, pricing) where **clarity, auditability, and fine-grained permissions** are critical.
 
 ---
 
 ## 🧩 Posts App — Combined Generic Views
 
-The `posts` app uses **higher-level combined generic views** to reduce boilerplate.
+The **Posts app** combines multiple HTTP methods in fewer classes.
 
-### Views Used
+**Views:**
 
 * `ListCreateAPIView`
 * `RetrieveUpdateDestroyAPIView`
 
-### Key Characteristics
+**Key Characteristics:**
 
-* Fewer classes, same functionality
-* Public read access
-* Authenticated-only write access
+* Fewer classes, same REST behavior
+* **Public read access**, **authenticated write access**
 
-### Why This Matters
+**Use Case:**
 
-This pattern is common for content-driven APIs (blogs, comments, feeds), where readability and speed of development matter.
+Suitable for content-driven APIs (blogs, feeds), prioritizing **developer speed and maintainability** over granular control.
 
 ---
 
-## 🔐 Permissions & Access Control (JWT)
+## 🔐 Permissions & Access Control
 
-Permissions are applied **per view**, allowing fine-grained control while keeping the configuration simple.
+**Rules per resource:**
 
-### Permission Rules
+| Resource | Read Access | Write Access  |
+| -------- | ----------- | ------------- |
+| Products | Public      | Admin only    |
+| Posts    | Public      | Authenticated |
 
-| Resource | Read   | Write               |
-| -------- | ------ | ------------------- |
-| Products | Public | Admin only          |
-| Posts    | Public | Authenticated users |
-
-### Permission Classes Used
+**Classes used:**
 
 * `AllowAny`
 * `IsAuthenticatedOrReadOnly`
 * `IsAdminUser`
 
-### Authentication
+---
 
-* JWT (JSON Web Tokens) using `djangorestframework-simplejwt`
-* Login via `/api/token/` → returns `access` and `refresh` tokens
-* Include access token in request headers:
+## 🔑 Authentication — JWT (SimpleJWT)
+
+**Token Endpoints:**
 
 ```
-Authorization: Bearer <access_token>
+POST /api/token/
+POST /api/token/refresh/
 ```
+
+* `/api/token/` returns `access` and `refresh` tokens
+* Use `Authorization: Bearer <access_token>` in request headers
+
+**Benefits:**
+
+* Stateless authentication
+* Eliminates CSRF
+* Works seamlessly with Swagger, Postman, and frontend apps
 
 ---
 
-## 🔎 Permissions Flow
+## 📚 API Documentation — Swagger & OpenAPI
 
-```
-                    ┌──────────────┐
-                    │   Anonymous  │
-                    │     User     │
-                    └──────┬───────┘
-                           │
-               ┌───────────┴───────────┐
-               │                       │
-        GET /products/           GET /posts/
-        GET /products/<slug>     GET /posts/<id>
-               │                       │
-            ✅ Allowed              ✅ Allowed
-               │                       │
-               └───────────┬───────────┘
-                           │
-                    ┌──────▼───────┐
-                    │ Authenticated│
-                    │     User     │
-                    └──────┬───────┘
-                           │
-            ┌──────────────┴──────────────┐
-            │                             │
-     POST /posts/                  PUT /posts/<id>
-     DELETE /posts/<id>            PATCH /posts/<id>
-            │                             │
-         ✅ Allowed                    ✅ Allowed
-            │
-            └───────────┬───────────┐
-                        │
-                  ┌─────▼─────┐
-                  │   Admin   │
-                  │   User    │
-                  └─────┬─────┘
-                        │
-        ┌───────────────┴────────────────┐
-        │                                │
- POST /products/create         PUT /products/update/<slug>
- DELETE /products/destroy/<slug>
-        │
-     ✅ Allowed
-```
+* Powered by **drf-spectacular**
+* Generates **interactive OpenAPI 3 documentation** from views, serializers, permissions, and JWT settings
+* No manual documentation is required
+
+**Endpoints:**
+
+| Tool           | URL            | Description              |
+| -------------- | -------------- | ------------------------ |
+| Swagger UI     | `/api/docs/`   | Interactive API explorer |
+| ReDoc          | `/api/redoc/`  | Clean, readable docs     |
+| OpenAPI Schema | `/api/schema/` | Raw OpenAPI 3 spec       |
+
+**Swagger Usage:**
+
+1. Visit `http://127.0.0.1:8000/api/docs/`
+2. Browse endpoints
+3. Authenticate using JWT
+4. Execute API requests directly
+
+---
+
+## 🪵 Logging & Observability
+
+Custom **API request/response logging** via `DRFRequestResponseLoggingMiddleware`.
+
+**Highlights:**
+
+* Logs written to `logs/api.log`
+* Captures HTTP method, path, status codes, timestamps
+* Uses custom Django logger for isolated auditing
 
 ---
 
@@ -149,87 +176,124 @@ Authorization: Bearer <access_token>
 
 ### Products API (Granular)
 
-| Method   | Endpoint                        | Access | Description      |
-| -------- | ------------------------------- | ------ | ---------------- |
-| `GET`    | `/api/products/`                | Public | List products    |
-| `POST`   | `/api/products/create`          | Admin  | Create product   |
-| `GET`    | `/api/products/retrieve/<slug>` | Public | Retrieve product |
-| `PUT`    | `/api/products/update/<slug>`   | Admin  | Update product   |
-| `DELETE` | `/api/products/destroy/<slug>`  | Admin  | Delete product   |
-
----
+| Method | Endpoint                        | Access | Description      |
+| ------ | ------------------------------- | ------ | ---------------- |
+| GET    | `/api/products/`                | Public | List products    |
+| POST   | `/api/products/create`          | Admin  | Create product   |
+| GET    | `/api/products/retrieve/<slug>` | Public | Retrieve product |
+| PUT    | `/api/products/update/<slug>`   | Admin  | Update product   |
+| DELETE | `/api/products/destroy/<slug>`  | Admin  | Delete product   |
 
 ### Posts API (Combined)
 
-| Method   | Endpoint              | Access        | Description   |
-| -------- | --------------------- | ------------- | ------------- |
-| `GET`    | `/api/posts/`         | Public        | List posts    |
-| `POST`   | `/api/posts/`         | Authenticated | Create post   |
-| `GET`    | `/api/posts/<int:pk>` | Public        | Retrieve post |
-| `PUT`    | `/api/posts/<int:pk>` | Authenticated | Update post   |
-| `DELETE` | `/api/posts/<int:pk>` | Authenticated | Delete post   |
+| Method | Endpoint              | Access        | Description   |
+| ------ | --------------------- | ------------- | ------------- |
+| GET    | `/api/posts/`         | Public        | List posts    |
+| POST   | `/api/posts/`         | Authenticated | Create post   |
+| GET    | `/api/posts/<int:pk>` | Public        | Retrieve post |
+| PUT    | `/api/posts/<int:pk>` | Authenticated | Update post   |
+| DELETE | `/api/posts/<int:pk>` | Authenticated | Delete post   |
 
 ---
 
-## 🧪 Notable Lessons Learned
+## 🧪 Lessons Learned
 
-### IDE Autocomplete Can Bite
-
-A stray import from Python’s `turtle` module made it into a serializer. Removed and corrected — a reminder to **read imports carefully**.
-
-### Trailing Slashes Matter
-
-Django treats `/endpoint` and `/endpoint/` differently. URL patterns were written deliberately to avoid unnecessary redirects.
-
-### Lookup Fields Are API Design
-
-Switching from `pk` to `slug` dramatically improves URL readability and mirrors real-world REST conventions.
-
-### JWT vs Session
-
-* JWT removes CSRF requirements, making API testing simpler
-* Access token is required in headers for protected endpoints
-* Refresh token can extend sessions without storing credentials
+* **IDE Autocomplete Can Bite** – always audit imports
+* **Trailing Slashes Matter** – `/endpoint` ≠ `/endpoint/`
+* **Lookup Fields Shape APIs** – `slug` improves readability
+* **JWT vs Session Auth** – stateless, header-based, clean Swagger/Postman integration
 
 ---
 
-## 🚀 Running the Project
+## 🧠 Products vs Posts — Core Takeaways
 
-```bash
-# Activate environment
-source venv/bin/activate  # Linux/macOS
-venv\Scripts\activate     # Windows
+This project is a personal refresher on **DRF generic views**, illustrating why **different patterns exist**:
 
-# Install dependencies
-pip install -r requirements.txt
+* **Products (Granular)**
 
-# Apply migrations
-python manage.py migrate
+  * One class per action
+  * Clear permission boundaries
+  * Maximum control
+  * Easy to extend
 
-# Run server
-python manage.py runserver
-```
+* **Posts (Combined)**
 
-Authentication testing endpoints:
+  * Multiple methods per class
+  * Less boilerplate
+  * Shared permissions
+  * Faster iteration
 
-```
-POST /api/token/       # Get access & refresh token
-POST /api/token/refresh/ # Refresh access token
-```
-
-Include the `access` token in requests:
-
-```
-Authorization: Bearer <access_token>
-```
+Side-by-side implementation with shared auth, logging, and Swagger makes the distinction concrete.
 
 ---
 
 ## ✅ Key Takeaways
 
-* DRF generic views scale cleanly from explicit to abstract
-* Permissions should be **intentional, visible, and testable**
-* Cleaner code does not require sacrificing control
-* JWT tokens simplify authentication for APIs
-* Good APIs communicate intent through structure
+* DRF generic views scale from **explicit** to **abstract**
+* Products vs Posts demonstrates **intentional design choices**
+* Permissions must be **visible and enforced**
+* JWT simplifies authentication
+* Swagger keeps docs **accurate and self-updating**
+* Logging is essential for production observability
+* API structure communicates architectural intent
+
+---
+
+## 🖼️ DRF Generic Views — Unified Diagram (Hierarchy + Endpoints + Methods + Permissions)
+
+```
+                     ┌─────────────────────────┐
+                     │  Django REST Framework  │
+                     │      Generic Views      │
+                     └────────────┬──────────┘
+                                  │
+          ┌───────────────────────┴───────────────────────┐
+          │                                               │
+    ┌───────────────┐                               ┌───────────────┐
+    │  Products App │                               │  Posts App    │
+    │  (Granular)   │                               │  (Combined)   │
+    └──────┬────────┘                               └──────┬────────┘
+           │                                               │
+           │                                               │
+┌─────────────┐   ┌──────────────┐                   ┌──────────────────────────┐
+│ ListAPIView │   │ CreateAPIView│                   │ ListCreateAPIView       │
+│ /products/  │   │ /products/create│                │ /posts/                 │
+│ GET ✅ P    │   │ POST ✅ AD     │                   │ GET ✅ P  POST ✅ A      │
+└─────────────┘   └──────────────┘                   └──────────────────────────┘
+       │                 │
+┌─────────────┐   ┌─────────────┐                   ┌──────────────────────────┐
+│RetrieveAPIView│ │UpdateAPIView│                   │RetrieveUpdateDestroyAPIView│
+│ /products/retrieve/<slug> │ /products/update/<slug> │ /posts/<id>             │
+│ GET ✅ P     │ │ PUT ✅ AD   │                   │ GET ✅ P  PUT ✅ A  DELETE ✅ A │
+└─────────────┘   └─────────────┘                   └──────────────────────────┘
+       │
+┌─────────────┐
+│DestroyAPIView│
+│ /products/destroy/<slug> │
+│ DELETE ✅ AD │
+└─────────────┘
+```
+
+**Legend:** P = Public, A = Authenticated, AD = Admin
+
+---
+
+### 📝 Endpoint → Methods → Permissions (Quick Reference)
+
+#### Products (Granular)
+
+| Endpoint                        | GET | POST | PUT | DELETE | Permissions |
+| ------------------------------- | --- | ---- | --- | ------ | ----------- |
+| `/api/products/`                | ✅   |      |     |        | Public      |
+| `/api/products/create`          |     | ✅    |     |        | Admin       |
+| `/api/products/retrieve/<slug>` | ✅   |      |     |        | Public      |
+| `/api/products/update/<slug>`   |     |      | ✅   |        | Admin       |
+| `/api/products/destroy/<slug>`  |     |      |     | ✅      | Admin       |
+
+#### Posts (Combined)
+
+| Endpoint          | GET | POST | PUT | DELETE | Permissions                          |
+| ----------------- | --- | ---- | --- | ------ | ------------------------------------ |
+| `/api/posts/`     | ✅   | ✅    |     |        | GET=Public, POST=Authenticated       |
+| `/api/posts/<id>` | ✅   |      | ✅   | ✅      | GET=Public, PUT/DELETE=Authenticated |
 

@@ -1,0 +1,6 @@
+[INFO] 2026-01-17 06:20:32,923 api.requests GET /api/docs/ -> 200 (anonymous) 16ms
+[INFO] 2026-01-17 06:20:33,148 api.requests GET /api/schema/ -> 200 (anonymous) 30ms
+[INFO] 2026-01-17 06:21:13,743 api.requests GET /api/posts -> 404 (anonymous) 15ms
+[INFO] 2026-01-17 06:21:13,879 api.requests GET /api/posts/ -> 200 (anonymous) 125ms
+[INFO] 2026-01-17 06:46:01,283 api.requests GET /api/docs/ -> 200 (anonymous) 0ms
+[INFO] 2026-01-17 06:46:01,476 api.requests GET /api/schema/ -> 200 (anonymous) 14ms
