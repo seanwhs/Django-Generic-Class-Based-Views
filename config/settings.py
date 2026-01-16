@@ -12,7 +12,7 @@ LOG_DIR.mkdir(exist_ok=True)
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# SECURITY WARNING: This is a devkey. Rgen a prod key and keep it secret!
 SECRET_KEY = 'django-insecure-%5l@)uebga6556+to7u9zb7ni#f22dw0fx72z0c$oc0f3cx^xm'
 
 # SECURITY WARNING: don't run with debug turned on in production!
